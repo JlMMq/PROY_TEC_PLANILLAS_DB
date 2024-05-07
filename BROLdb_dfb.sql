@@ -773,19 +773,22 @@ CREATE PROCEDURE usp_ValidarUserSystem
 	AS
 	BEGIN 
 		DECLARE @estadoTrans BIT;
-		DECLARE	@codUser int; 
+		DECLARE	@codUser int;
+		DECLARE @permiso INT;
 
 		IF (SELECT TOP 1 1 FROM Tb_UserSystem WHERE nomUser = @nomUser AND passUser = @passUser) IS NOT NULL
 		BEGIN
 			SET @estadoTrans = 1;
 			SET @codUser = (SELECT TOP 1 codUser FROM Tb_UserSystem WHERE nomUser = @nomUser AND passUser = @passUser);
+			SET @permiso = (SELECT TOP 1 permisoUser FROM Tb_UserSystem WHERE nomUser = @nomUser AND passUser = @passUser);
 		END
 		ELSE
 		BEGIN
 			SET @estadoTrans = 0;
 			SET @codUser = 0;
+			SET @permiso = -1;
 		END
-		SELECT @estadoTrans AS estadoTrans, @codUser AS codUser;
+		SELECT @estadoTrans AS estadoTrans, @codUser AS codUser, @permiso AS permiso;
 END;
 
 GO
