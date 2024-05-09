@@ -26,7 +26,8 @@ CREATE TABLE Tb_UserSystem(
 	usu_UltMod varchar(20) null
 );
 
-INSERT INTO Tb_UserSystem(nomUser,passUser,estdUser,permisoUser) VALUES ('admin','admin','1',3);
+INSERT INTO Tb_UserSystem(nomUser,passUser,estdUser,permisoUser) VALUES ('admin','admin','1',3),
+('juan','juan','1',2),('luis','luis','1',1);
 
 CREATE TABLE Tb_Horario(
 	codHorario integer IDENTITY(1,1)  PRIMARY KEY,
