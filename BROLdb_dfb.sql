@@ -552,7 +552,17 @@ CREATE PROCEDURE usp_ConsultarEmpleadoCodDoc
 	SELECT * FROM vw_VistaEmpleado
 	WHERE codEmpleado = @codEmpleado OR numroDoc = @numroDoc;
 END;
-
+go
+CREATE PROCEDURE usp_ListarEmpleadosView
+	AS
+	BEGIN
+	SELECT e.codEmpleado, e.numroDoc,e.apellidos, e.nombres, e.correo, e.direccion, e.telefono, e.estado, d.descrLarga as nombreDocumento , c.nomCargo as nombreCargo,
+	a.nomArea as nombreArea, h.desHorario as nombreHorario FROM  Tb_Empleado e
+	INNER JOIN Tb_Documento d ON d.codDoc = e.tipoDoc
+	INNER JOIN Tb_Area a ON a.codArea = e.codArea	
+	INNER JOIN Tb_Cargo c on c.codCargo = e.codCargo
+	INNER JOIN Tb_Horario h on h.codHorario = e.codHorario;
+END;
 go
 CREATE PROCEDURE usp_ListarEmpleados
 	AS
