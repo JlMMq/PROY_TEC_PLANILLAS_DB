@@ -313,7 +313,7 @@ INSERT INTO Tb_Feriados (fecha, descrip) VALUES
 -- TABLAS AUDITORIAS
 
 CREATE TABLE Tb_UserSystem_Audit(
-	codUser integer IDENTITY(5001,1) PRIMARY KEY,
+	codUser integer PRIMARY KEY,
 	nomUser varchar(20) not null,
 	correoUser varchar(70) null,
 	passUser varchar(25) not null,
@@ -410,7 +410,7 @@ CREATE TABLE Tb_Marcas_Audit(
 );
 
 CREATE TABLE Tb_Diario_Audit(
-	codAudit	integer IDENTITY (1,1) PRIMARY KEY,
+	codAudit integer IDENTITY (1,1) PRIMARY KEY,
 	codDiar  integer not null,
 	fecha DATE NOT NULL,
 	empleado integer NOT NULL,
@@ -773,7 +773,12 @@ CREATE PROCEDURE usp_ConsultarUserSystem
 	@codUser INTEGER 
 	AS 
 	BEGIN 
-	SELECT*FROM vw_VistaUserSystem
+	SELECT 
+		codUser,
+		nomUser,
+		passUser,
+		estdUser 
+	FROM vw_VistaUserSystem
 	WHERE codUser = @codUser;
 END;
 
@@ -807,7 +812,12 @@ CREATE PROCEDURE usp_ConsultarUserSystemNom
 	@nomUser VARCHAR(50)
 	AS 
 	BEGIN
-	SELECT * FROM vw_VistaUserSystem
+	SELECT 
+		codUser,
+		nomUser,
+		passUser,
+		estdUser 
+	FROM vw_VistaUserSystem
 	WHERE nomUser = @nomUser;
 END;
 
@@ -819,6 +829,18 @@ CREATE PROCEDURE usp_ListarUserSystem
 		codUser,
 		nomUser,
 		passUser,
+		estdUser
+	FROM vw_VistaUserSystem
+	ORDER BY codUser;
+END;
+
+GO
+CREATE PROCEDURE usp_ListarUserSystemView
+	AS 
+	BEGIN 
+	SELECT 
+		codUser,
+		nomUser,
 		estdUser
 	FROM vw_VistaUserSystem
 	ORDER BY codUser;
@@ -1482,6 +1504,9 @@ CREATE TRIGGER tr_EmpleadoInsertar
 		'INSERT',
 		GETDATE()
 		FROM inserted;
+
+		INSERT INTO Tb_UserSystem (nomUser,correoUser,passUser,estdUser,permisoUser,str_nombres,str_apellidos,fec_Reg,usu_Reg)
+		SELECT CONVERT(VARCHAR(20), codEmpleado),correo,'2024BROL'+ CONVERT(VARCHAR(13),numroDoc),1,1,nombres,apellidos,GETDATE(),usu_Reg FROM inserted;
 END;
 
 GO 
