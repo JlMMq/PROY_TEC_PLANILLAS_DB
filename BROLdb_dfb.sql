@@ -313,7 +313,8 @@ INSERT INTO Tb_Feriados (fecha, descrip) VALUES
 -- TABLAS AUDITORIAS
 
 CREATE TABLE Tb_UserSystem_Audit(
-	codUser integer PRIMARY KEY,
+	codAudit integer IDENTITY(1,1) PRIMARY KEY,
+	codUser integer,
 	nomUser varchar(20) not null,
 	correoUser varchar(70) null,
 	passUser varchar(25) not null,
@@ -791,20 +792,69 @@ CREATE PROCEDURE usp_ValidarUserSystem
 		DECLARE @estadoTrans BIT;
 		DECLARE	@codUser int;
 		DECLARE @permiso INT;
+		
+		DECLARE @strnombres VARCHAR(50);
+		DECLARE @strapellidos VARCHAR(50);
+		DECLARE @correoUser VARCHAR(70);
 
 		IF (SELECT TOP 1 1 FROM Tb_UserSystem WHERE nomUser = @nomUser AND passUser = @passUser) IS NOT NULL
 		BEGIN
 			SET @estadoTrans = 1;
 			SET @codUser = (SELECT TOP 1 codUser FROM Tb_UserSystem WHERE nomUser = @nomUser AND passUser = @passUser);
 			SET @permiso = (SELECT TOP 1 permisoUser FROM Tb_UserSystem WHERE nomUser = @nomUser AND passUser = @passUser);
+			
+			SELECT TOP 1 
+				@strnombres = str_nombres,
+				@strapellidos = str_apellidos,
+				@correoUser = correoUser
+			FROM Tb_UserSystem
+			WHERE nomUser = @nomUser AND passUser = @passUser;
+		
 		END
 		ELSE
 		BEGIN
 			SET @estadoTrans = 0;
 			SET @codUser = 0;
 			SET @permiso = -1;
+			SET @strnombres = '';
+			SET	@strapellidos = '';
+			SET	@correoUser = '';
 		END
-		SELECT @estadoTrans AS estadoTrans, @codUser AS codUser, @permiso AS permiso;
+
+
+		SELECT @estadoTrans AS estadoTrans, @codUser AS codUser, @nomUser AS nomUser, @strnombres AS str_nombres,@strapellidos AS str_apellidos,@correoUser AS correoUser, @permiso AS permiso;
+END;
+
+GO
+CREATE PROCEDURE usp_ActualizarCorreo
+	@codUser int,
+	@correo VARCHAR(70)
+	AS
+	BEGIN 
+		DECLARE @usuario VARCHAR(20);
+		
+		UPDATE Tb_UserSystem SET
+			correoUser = @correo
+		WHERE codUser = @codUser;
+
+		SET @usuario = (SELECT TOP 1 nomUser FROM Tb_UserSystem WHERE codUser = @codUser);
+		IF (SELECT TOP 1 1 FROM Tb_Empleado WHERE codEmpleado = TRY_CAST(@usuario AS INT)) IS NOT NULL
+		BEGIN
+			UPDATE Tb_Empleado SET 
+			correo = @correo
+			WHERE codEmpleado = CAST(@usuario AS INT);
+		END
+END;
+
+GO
+CREATE PROCEDURE usp_CambiarPassword
+	@codUser int,
+	@passUser VARCHAR(25)
+	AS
+	BEGIN 
+		UPDATE Tb_UserSystem SET
+			passUser = @passUser
+			WHERE codUser = @codUser
 END;
 
 GO
