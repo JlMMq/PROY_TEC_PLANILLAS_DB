@@ -865,9 +865,13 @@ CREATE PROCEDURE usp_ConsultarUserSystemNom
 	SELECT 
 		codUser,
 		nomUser,
-		passUser,
+		correoUser,
+		permisoUser,
+		str_nombres,
+		str_apellidos,
+		fec_Reg,
 		estdUser 
-	FROM vw_VistaUserSystem
+	FROM Tb_UserSystem
 	WHERE nomUser = @nomUser;
 END;
 
@@ -878,9 +882,13 @@ CREATE PROCEDURE usp_ListarUserSystem
 	SELECT 
 		codUser,
 		nomUser,
-		passUser,
+		correoUser,
+		permisoUser,
+		str_nombres,
+		str_apellidos,
+		fec_Reg,
 		estdUser
-	FROM vw_VistaUserSystem
+	FROM Tb_UserSystem
 	ORDER BY codUser;
 END;
 
@@ -894,6 +902,20 @@ CREATE PROCEDURE usp_ListarUserSystemView
 		estdUser
 	FROM vw_VistaUserSystem
 	ORDER BY codUser;
+END;
+
+GO
+CREATE PROCEDURE usp_UpdPermisosUserSystem
+	@codUser INT,
+	@permiso INT,
+	@estado INT
+	AS
+	BEGIN 
+	UPDATE Tb_UserSystem SET
+		permisoUser = @permiso, 
+		estdUser = @estado
+	WHERE 
+		codUser = @codUser;
 END;
 
 GO
