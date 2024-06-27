@@ -310,6 +310,32 @@ INSERT INTO Tb_Feriados (fecha, descrip) VALUES
 ('2024-12-08', 'Día de la Inmaculada Concepción'),
 ('2024-12-25', 'Navidad');
 
+CREATE TABLE Tb_Solicitud(
+	codSolicitud integer IDENTITY(1000,1) PRIMARY KEY,
+	
+	codSolicitante INTEGER NOT NULL,
+	codSupervisor INTEGER NOT NULL,
+	
+	tipoSolic INTEGER NOT NULL,
+	desc_asunto VARCHAR(50) NOT NULL,
+	desc_content VARCHAR(255) NOT NULL,
+	fechaIni DATE NOT NULL,
+	fechaFin DATE NOT NULL,
+
+	estado integer NOT NULL DEFAULT 0,
+
+	fec_Reg  datetime NULL,
+	usu_Reg varchar(20) NULL,
+	fec_UltMod datetime NULL,
+	usu_UltMod varchar(20) NULL
+);
+
+-- 0 PENDIENTE
+-- 1 ACEPTADO
+-- 2 CADUCADO
+-- 3 RECHAZADO
+
+
 -- TABLAS AUDITORIAS
 
 CREATE TABLE Tb_UserSystem_Audit(
@@ -331,6 +357,8 @@ CREATE TABLE Tb_UserSystem_Audit(
 	accion VARCHAR(50)NULL, 
 	fec_HorAccion DATETIME NULL
 );
+
+
 
 CREATE TABLE Tb_Horario_Audit(
 	codAudit INTEGER IDENTITY(1,1) PRIMARY KEY,
@@ -436,6 +464,7 @@ CREATE TABLE Tb_Diario_Audit(
 	fec_HorAccion DATETIME NULL
 );
 
+
 -- VISTAS 
 GO 
 CREATE VIEW vw_VistaUserSystem
@@ -524,6 +553,169 @@ CREATE VIEW vw_VistaDiario
 	FROM Tb_Diario
 
 -- PROCEDIMIENTOS ALMACENADOS	
+
+-- SOLICITUDES
+GO
+CREATE PROCEDURE usp_InsertarSolicitud
+	@codSolicitante INTEGER,
+	@codSupervisor INTEGER,
+	@tipo INTEGER,
+	@asunto VARCHAR(50),
+	@descrip VARCHAR(255),
+	@fechaIni DATE,
+	@fechaFin DATE,
+
+	@usuario VARCHAR(20)
+	AS
+	BEGIN
+	-- TIPO
+	 -- 1 Vacaciones
+	 -- 2 Permiso Personal
+	 -- 3 Permiso Medico
+	 -- 4 Otros
+		DECLARE @cod_out INT;
+		DECLARE @mensaje VARCHAR(255);
+		
+		IF EXISTS(SELECT 1 FROM Tb_UserSystem WHERE nomUser = CAST(@codSupervisor AS VARCHAR(20)) AND permisoUser = 3) 
+		BEGIN
+			INSERT INTO Tb_Solicitud (codSolicitante,codSupervisor,tipoSolic,desc_asunto,desc_content,fechaIni,fechaFin,estado,fec_Reg,usu_Reg) VALUES
+				(@codSolicitante,@codSupervisor,@tipo,@asunto,@descrip,@fechaIni,@fechaFin,0,GETDATE(),@usuario);
+			SET @cod_out = 1;
+			SET @mensaje = 'Se ingreso correctamente la solicitud.';
+		END
+		ELSE 
+		BEGIN 
+			SET @cod_out = -1;
+			SET @mensaje = 'El destinatario no tiene permiso para admitir solicitudes.';
+		END
+			
+	SELECT  @cod_out AS CODIGO, @mensaje  AS MENSAJE;
+END;
+
+GO 
+CREATE PROCEDURE usp_ProcesarSolicitud
+	@codSolicitud INTEGER,
+	@estado INTEGER,
+	@usuario VARCHAR(20)
+	AS 
+	BEGIN
+	-- ESTADO
+	-- 0 PENDIENTE
+	-- 1 ACEPTADO
+	-- 2 CADUCADO
+	-- 3 RECHAZADO
+	DECLARE @cod_out INTEGER;
+	DECLARE @mensaje VARCHAR(255);
+
+	SET @cod_out = 0;
+	SET @mensaje = 'No se proceso la solicitud.';
+
+	IF (@estado = 1)
+	BEGIN
+		UPDATE Tb_Solicitud SET
+		estado = @estado, 
+		fec_UltMod = GETDATE(),
+		usu_UltMod = @usuario
+		WHERE codSolicitud = @codSolicitud;
+
+		DECLARE @codSolicitante INTEGER;
+		DECLARE @fecIni DATE;
+		DECLARE @fecFin DATE;
+		DECLARE @estado_select INTEGER;
+		-- En teoria las fechas ya estan validadas y correspondientes, si el dia ya paso, ya deberia estar caducada la solicitud.
+		SELECT @codSolicitante = codSolicitante, @fecIni = fechaIni , @fecFin = fechaFin, @estado_select = estado FROM Tb_Solicitud WHERE codSolicitud = @codSolicitud;
+		
+		IF(@estado_select = 0)
+		BEGIN
+			DECLARE @horario INTEGER;
+			SELECT TOP 1 @horario = codHorario FROM Tb_Empleado WHERE codEmpleado = @codSolicitante;
+			
+			DECLARE @fecTemp DATE = @fecIni;
+			DECLARE @numeroDiaSemana INT;
+			DECLARE @hIngreso TIME;
+			DECLARE @hSalida TIME;
+			DECLARE @dif INT;
+
+			WHILE @fecTemp <= @fecFin
+			BEGIN
+				SET @numeroDiaSemana = DATEPART(WEEKDAY, @fecTemp);	
+				SELECT
+					@hIngreso = 
+					CASE @numeroDiaSemana 
+						WHEN 1 THEN (SELECT ingLUN FROM Tb_Horario WHERE codHorario = @horario)
+						WHEN 2 THEN (SELECT ingMAR FROM Tb_Horario WHERE codHorario = @horario)
+						WHEN 3 THEN (SELECT ingMIE FROM Tb_Horario WHERE codHorario = @horario)
+						WHEN 4 THEN (SELECT ingJUE FROM Tb_Horario WHERE codHorario = @horario)
+						WHEN 5 THEN (SELECT ingVIE FROM Tb_Horario WHERE codHorario = @horario)
+						WHEN 6 THEN (SELECT ingSAB FROM Tb_Horario WHERE codHorario = @horario)
+						WHEN 7 THEN (SELECT ingDOM FROM Tb_Horario WHERE codHorario = @horario)
+					END;
+				SELECT
+					@hSalida= 
+					CASE @numeroDiaSemana 
+						WHEN 1 THEN (SELECT salLUN FROM Tb_Horario WHERE codHorario = @horario)
+						WHEN 2 THEN (SELECT salMAR FROM Tb_Horario WHERE codHorario = @horario)
+						WHEN 3 THEN (SELECT salMIE FROM Tb_Horario WHERE codHorario = @horario)
+						WHEN 4 THEN (SELECT salJUE FROM Tb_Horario WHERE codHorario = @horario)
+						WHEN 5 THEN (SELECT salVIE FROM Tb_Horario WHERE codHorario = @horario)
+						WHEN 6 THEN (SELECT salSAB FROM Tb_Horario WHERE codHorario = @horario)
+						WHEN 7 THEN (SELECT salDOM FROM Tb_Horario WHERE codHorario = @horario)
+					END;
+				
+				SET @dif = DATEDIFF(MINUTE,@hSalida,@hIngreso);
+				IF (@dif != 0)
+				BEGIN
+					INSERT INTO Tb_Diario(fecha,empleado,horario,hIngreso,hSalida,hora1,hora2,hora3,hora4,ingrTard,observ,fec_Reg,usu_Reg) VALUES
+					(@fecTemp,@codSolicitante,@horario, @hIngreso,@hSalida,@hIngreso,'00:00:00','00:00:00',@hSalida,'00:00:00','PERMISO',GETDATE(),@usuario)
+				END
+				-- Pronto cambiara a palabras claves
+				SET @fecTemp = DATEADD(DAY,1,@fecTemp);
+			END
+		END
+		ELSE
+		BEGIN
+			SET @cod_out = -1;
+			IF(@estado_select = 1)
+			BEGIN
+				SET @mensaje = 'La solicitud ya se encuentra aceptada.';
+			END
+			ELSE IF (@estado_select = 2)
+			BEGIN
+				SET @mensaje = 'La solicitud ya ha caducado.';
+			END
+			ELSE IF (@estado_select = 3)
+			BEGIN
+				SET @mensaje = 'La solicitud ha sido rechazada.';
+			END
+			ELSE
+			BEGIN
+				SET @mensaje = 'Estado no catalogado.';
+			END
+		END
+	END
+	IF (@estado = 3)
+	BEGIN
+	  UPDATE Tb_Solicitud SET
+		estado = @estado, 
+		fec_UltMod = GETDATE(),
+		usu_UltMod = @usuario
+		WHERE codSolicitud = @codSolicitud;
+		
+		SET @cod_out = 1;
+		SET @mensaje = 'Se proceso la solicitud.';
+	END
+
+	SELECT  @cod_out AS CODIGO, @mensaje  AS MENSAJE;
+END;
+
+GO
+CREATE PROCEDURE usp_ListarSolicitudesSuperv
+	@codSupervisor INT
+	AS
+	BEGIN
+	SELECT s.codSolicitud,s.codSupervisor,s.codSolicitante,e.apellidos + e.nombres AS nomape,e.foto,s.tipoSolic,s.desc_asunto,s.desc_content,s.fechaIni,s.fechaFin,s.estado FROM Tb_Solicitud s
+ 	INNER JOIN Tb_Empleado e ON codSolicitante = codEmpleado WHERE codSupervisor = @codSupervisor;
+END;
 
 -- EMPLEADOS
 go
