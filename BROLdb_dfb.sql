@@ -671,6 +671,8 @@ CREATE PROCEDURE usp_ProcesarSolicitud
 				-- Pronto cambiara a palabras claves
 				SET @fecTemp = DATEADD(DAY,1,@fecTemp);
 			END
+			SET @cod_out = 1;
+			SET @mensaje = 'Se proceso la solicitud.';
 		END
 		ELSE
 		BEGIN
