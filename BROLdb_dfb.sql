@@ -310,6 +310,7 @@ INSERT INTO Tb_Feriados (fecha, descrip) VALUES
 ('2024-12-08', 'Día de la Inmaculada Concepción'),
 ('2024-12-25', 'Navidad');
 
+
 CREATE TABLE Tb_Solicitud(
 	codSolicitud integer IDENTITY(1000,1) PRIMARY KEY,
 	
@@ -317,10 +318,14 @@ CREATE TABLE Tb_Solicitud(
 	codSupervisor INTEGER NOT NULL,
 	
 	tipoSolic INTEGER NOT NULL,
+	tipoAsunto INTEGER NOT NULL,
 	desc_asunto VARCHAR(50) NOT NULL,
-	desc_content VARCHAR(255) NOT NULL,
+	desc_content VARCHAR(255) NULL,
 	fechaIni DATE NOT NULL,
 	fechaFin DATE NOT NULL,
+	horaSalida TIME NULL,
+	horaEntrada TIME NULL,
+	archivo VARBINARY(MAX) NULL,
 
 	estado integer NOT NULL DEFAULT 0,
 
@@ -330,6 +335,8 @@ CREATE TABLE Tb_Solicitud(
 	usu_UltMod varchar(20) NULL
 );
 
+
+-- Estado
 -- 0 PENDIENTE
 -- 1 ACEPTADO
 -- 2 CADUCADO
@@ -559,11 +566,16 @@ GO
 CREATE PROCEDURE usp_InsertarSolicitud
 	@codSolicitante INTEGER,
 	@codSupervisor INTEGER,
-	@tipo INTEGER,
+	@tipoSolic INTEGER,
+	@tipoAsunto INTEGER,
 	@asunto VARCHAR(50),
 	@descrip VARCHAR(255),
 	@fechaIni DATE,
 	@fechaFin DATE,
+	@horaSalida TIME,
+	@horaEntrada TIME,
+
+	@archivo VARBINARY(MAX),
 
 	@usuario VARCHAR(20)
 	AS
@@ -578,8 +590,8 @@ CREATE PROCEDURE usp_InsertarSolicitud
 		
 		IF EXISTS(SELECT 1 FROM Tb_UserSystem WHERE nomUser = CAST(@codSupervisor AS VARCHAR(20)) AND permisoUser = 3) 
 		BEGIN
-			INSERT INTO Tb_Solicitud (codSolicitante,codSupervisor,tipoSolic,desc_asunto,desc_content,fechaIni,fechaFin,estado,fec_Reg,usu_Reg) VALUES
-				(@codSolicitante,@codSupervisor,@tipo,@asunto,@descrip,@fechaIni,@fechaFin,0,GETDATE(),@usuario);
+			INSERT INTO Tb_Solicitud (codSolicitante,codSupervisor,tipoSolic,tipoAsunto,desc_asunto,desc_content,fechaIni,fechaFin,horaSalida,horaEntrada,archivo,estado,fec_Reg,usu_Reg) VALUES
+				(@codSolicitante,@codSupervisor,@tipoSolic,@tipoAsunto,@asunto,@descrip,@fechaIni,@fechaFin,@horaSalida,@horaEntrada,@archivo,0,GETDATE(),@usuario);
 			SET @cod_out = 1;
 			SET @mensaje = 'Se ingreso correctamente la solicitud.';
 		END
@@ -622,9 +634,18 @@ CREATE PROCEDURE usp_ProcesarSolicitud
 		DECLARE @fecIni DATE;
 		DECLARE @fecFin DATE;
 		DECLARE @estado_select INTEGER;
+		DECLARE @tipoSoli INT;
+		DECLARE @descSoli VARCHAR(50);
 		-- En teoria las fechas ya estan validadas y correspondientes, si el dia ya paso, ya deberia estar caducada la solicitud.
-		SELECT @codSolicitante = codSolicitante, @fecIni = fechaIni , @fecFin = fechaFin, @estado_select = estado FROM Tb_Solicitud WHERE codSolicitud = @codSolicitud;
+		SELECT @codSolicitante = codSolicitante, @fecIni = fechaIni , @fecFin = fechaFin, @estado_select = estado , @tipoSoli = tipoSolic FROM Tb_Solicitud WHERE codSolicitud = @codSolicitud;
 		
+		SELECT @descSoli =
+			CASE @tipoSoli 
+				WHEN 1 THEN (SELECT 'PERMISO')
+				WHEN 2 THEN (SELECT 'LICENCIA')
+				WHEN 3 THEN (SELECT 'VACACION')
+			END;
+
 		IF(@estado_select = 0)
 		BEGIN
 			DECLARE @horario INTEGER;
@@ -666,7 +687,7 @@ CREATE PROCEDURE usp_ProcesarSolicitud
 				IF (@dif != 0)
 				BEGIN
 					INSERT INTO Tb_Diario(fecha,empleado,horario,hIngreso,hSalida,hora1,hora2,hora3,hora4,ingrTard,observ,fec_Reg,usu_Reg) VALUES
-					(@fecTemp,@codSolicitante,@horario, @hIngreso,@hSalida,@hIngreso,'00:00:00','00:00:00',@hSalida,'00:00:00','PERMISO',GETDATE(),@usuario)
+					(@fecTemp,@codSolicitante,@horario, @hIngreso,@hSalida,@hIngreso,'00:00:00','00:00:00',@hSalida,'00:00:00',@descSoli,GETDATE(),@usuario)
 				END
 				-- Pronto cambiara a palabras claves
 				SET @fecTemp = DATEADD(DAY,1,@fecTemp);
@@ -715,9 +736,20 @@ CREATE PROCEDURE usp_ListarSolicitudesSuperv
 	@codSupervisor INT
 	AS
 	BEGIN
-	SELECT s.codSolicitud,s.codSupervisor,s.codSolicitante,e.apellidos + e.nombres AS nomape,e.foto,s.tipoSolic,s.desc_asunto,s.desc_content,s.fechaIni,s.fechaFin,s.estado FROM Tb_Solicitud s
+	SELECT s.codSolicitud,s.codSupervisor,s.codSolicitante,e.apellidos + e.nombres AS nomape,e.foto,s.tipoSolic,s.desc_asunto,s.desc_content,s.estado FROM Tb_Solicitud s
  	INNER JOIN Tb_Empleado e ON codSolicitante = codEmpleado WHERE codSupervisor = @codSupervisor;
 END;
+
+GO
+CREATE PROCEDURE usp_ListarSoliEmpleadosSuperv
+	AS
+	SELECT  e.codEmpleado, e.apellidos + ', ' + e.nombres as apenom,c.nomCargo,a.nomArea, e.foto 
+	FROM Tb_Empleado e
+	INNER JOIN Tb_Cargo c ON e.codCargo = c.codCargo
+	INNER JOIN Tb_Area a ON e.codArea = a.codArea
+	WHERE e.estado = 1;
+
+
 
 -- EMPLEADOS
 go
