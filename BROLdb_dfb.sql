@@ -732,12 +732,58 @@ CREATE PROCEDURE usp_ProcesarSolicitud
 END;
 
 GO
-CREATE PROCEDURE usp_ListarSolicitudesSuperv
-	@codSupervisor INT
+ALTER PROCEDURE usp_ListarSolicitudesView
+	@codSupervisor INT,
+	@codSolicitante INT
 	AS
 	BEGIN
-	SELECT s.codSolicitud,s.codSupervisor,s.codSolicitante,e.apellidos + e.nombres AS nomape,e.foto,s.tipoSolic,s.desc_asunto,s.desc_content,s.estado FROM Tb_Solicitud s
+	IF @codSolicitante = 0 
+	BEGIN
+	SELECT s.codSolicitud,s.codSupervisor,s.codSolicitante,e.apellidos + ' '+ e.nombres AS nomape,e.foto,s.tipoSolic,   
+		CASE 
+            WHEN s.tipoSolic = 1 THEN 'PERMISO'
+            WHEN s.tipoSolic = 2 THEN 'LICENCIA'
+            WHEN s.tipoSolic = 3 THEN 'VACACIONES'
+            ELSE 'DESCONOCIDO'
+        END AS desc_solic, 
+		s.tipoAsunto,UPPER(s.desc_asunto) as desc_asunto,s.desc_content,s.estado, 
+		CASE 
+			WHEN s.estado = 0 THEN 'PENDIENTE'
+			WHEN s.estado = 1 THEN 'ACEPTADO'
+			WHEN s.estado = 2 THEN 'CADUCADO'
+			WHEN s.estado = 3 THEN 'RECHAZADO'
+		END AS desc_estado
+		FROM Tb_Solicitud s
  	INNER JOIN Tb_Empleado e ON codSolicitante = codEmpleado WHERE codSupervisor = @codSupervisor;
+	END
+
+	IF @codSupervisor = 0
+	BEGIN
+		SELECT s.codSolicitud,s.codSupervisor,s.codSolicitante,e.apellidos + e.nombres AS nomape,e.foto,s.tipoSolic,   
+		CASE 
+            WHEN s.tipoSolic = 1 THEN 'PERMISO'
+            WHEN s.tipoSolic = 2 THEN 'LICENCIA'
+            WHEN s.tipoSolic = 3 THEN 'VACACIONES'
+            ELSE 'DESCONOCIDO'
+        END AS desc_solic, 
+		s.tipoAsunto,UPPER(s.desc_asunto) as desc_asunto,s.desc_content,s.estado, 
+		CASE 
+			WHEN s.estado = 0 THEN 'PENDIENTE'
+			WHEN s.estado = 1 THEN 'ACEPTADO'
+			WHEN s.estado = 2 THEN 'CADUCADO'
+			WHEN s.estado = 3 THEN 'RECHAZADO'
+		END AS desc_estado
+		FROM Tb_Solicitud s
+ 	INNER JOIN Tb_Empleado e ON codSupervisor = codEmpleado WHERE codSolicitante = @codSolicitante;
+	END
+END;
+
+GO
+CREATE PROCEDURE usp_ConsultarArchivoSolicitud
+	@codSolicitud int
+	AS 
+	BEGIN
+	SELECT TOP 1 archivo FROM Tb_Solicitud WHERE codSolicitud = @codSolicitud;
 END;
 
 GO
