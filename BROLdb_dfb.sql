@@ -618,17 +618,13 @@ CREATE PROCEDURE usp_ProcesarSolicitud
 	-- 3 RECHAZADO
 	DECLARE @cod_out INTEGER;
 	DECLARE @mensaje VARCHAR(255);
-
+	
 	SET @cod_out = 0;
 	SET @mensaje = 'No se proceso la solicitud.';
-
+	
 	IF (@estado = 1)
 	BEGIN
-		UPDATE Tb_Solicitud SET
-		estado = @estado, 
-		fec_UltMod = GETDATE(),
-		usu_UltMod = @usuario
-		WHERE codSolicitud = @codSolicitud;
+		
 
 		DECLARE @codSolicitante INTEGER;
 		DECLARE @fecIni DATE;
@@ -639,6 +635,12 @@ CREATE PROCEDURE usp_ProcesarSolicitud
 		-- En teoria las fechas ya estan validadas y correspondientes, si el dia ya paso, ya deberia estar caducada la solicitud.
 		SELECT @codSolicitante = codSolicitante, @fecIni = fechaIni , @fecFin = fechaFin, @estado_select = estado , @tipoSoli = tipoSolic FROM Tb_Solicitud WHERE codSolicitud = @codSolicitud;
 		
+		UPDATE Tb_Solicitud SET
+		estado = @estado, 
+		fec_UltMod = GETDATE(),
+		usu_UltMod = @usuario
+		WHERE codSolicitud = @codSolicitud;
+
 		SELECT @descSoli =
 			CASE @tipoSoli 
 				WHEN 1 THEN (SELECT 'PERMISO')
