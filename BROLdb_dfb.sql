@@ -342,6 +342,48 @@ CREATE TABLE Tb_Solicitud(
 -- 2 CADUCADO
 -- 3 RECHAZADO
 
+GO
+CREATE TABLE Tb_Sueldo(
+	codSueldo integer IDENTITY(1000,1) PRIMARY KEY,
+	codEmpleado integer NOT NULL FOREIGN KEY REFERENCES Tb_Empleado(codEmpleado),
+	sueldo float NOT NULL DEFAULT 0,
+	essalud integer not null DEFAULT 0,
+	afil_onp integer not null DEFAULT 0,
+	afil_afp integer not null DEFAULT 0,
+	
+	estado integer not null DEFAULT 0,
+	fec_Reg  datetime NULL,
+	usu_Reg varchar(20) NULL,
+	fec_UltMod datetime NULL,
+	usu_UltMod varchar(20) NULL
+);
+GO
+CREATE TABLE Tb_SueldoParametros(
+	codParametro integer IDENTITY(1,1) PRIMARY KEY,
+	descripcion VARCHAR(100) NULL,
+	valor_desc float NOT NULL DEFAULT 0 
+);
+
+GO
+CREATE TABLE Tb_RecibosPago(
+	codRecibo integer IDENTITY(1000,1) PRIMARY KEY,
+	codEmpleado integer NOT NULL FOREIGN KEY REFERENCES Tb_Empleado(codEmpleado),
+	fechaEmision datetime not null,
+	moneda varchar(50) null,
+	sueldoBase float null default 0,
+	descEssalud float null default 0,
+	descOnp float null default 0,
+	descAfp float null default 0,
+	descFaltas float null default 0,
+	sueldoTotal float null default 0,
+
+	fec_Reg  datetime NULL,
+	usu_Reg varchar(20) NULL,
+	fec_UltMod datetime NULL,
+	usu_UltMod varchar(20) NULL
+);	
+GO
+
 
 -- TABLAS AUDITORIAS
 
@@ -2544,3 +2586,99 @@ CREATE TRIGGER tr_DiarioEliminar
 		GETDATE()
 		FROM deleted;
 END;
+
+-- ULTIMOS METODOS  
+GO
+CREATE PROCEDURE usp_RegFaltas
+	AS
+	BEGIN
+	BEGIN TRANSACTION;
+
+    BEGIN TRY
+
+        DECLARE @fecha DATE = DATEADD(DAY, -1, CONVERT(DATE, GETDATE()));
+        DECLARE @diaSemana INT = DATEPART(WEEKDAY, @fecha);
+
+		UPDATE d
+		SET d.observ = 'ERROR'
+		FROM Tb_Diario d
+		INNER JOIN Tb_Empleado e ON e.codEmpleado = d.empleado
+		INNER JOIN Tb_Horario h ON e.codHorario = h.codHorario
+		WHERE d.fecha = @fecha
+		  AND d.hora4 IS NULL
+		  AND (
+			   (@diaSemana = 1  AND h.ingLUN <> h.salLUN)
+              OR (@diaSemana = 2  AND h.ingMAR <> h.salMAR)
+              OR (@diaSemana = 3  AND h.ingMIE <> h.salMIE)
+              OR (@diaSemana = 4  AND h.ingJUE <> h.salJUE)
+              OR (@diaSemana = 5  AND h.ingVIE <> h.salVIE)
+              OR (@diaSemana = 6  AND h.ingSAB <> h.salSAB)
+              OR (@diaSemana = 7  AND h.ingDOM <> h.salDOM)
+		  );
+
+        INSERT INTO Tb_Diario (fecha, empleado, observ)
+        SELECT @fecha, e.codEmpleado, 'FALTO'
+        FROM Tb_Empleado e
+        INNER JOIN Tb_Horario h ON e.codHorario = h.codHorario
+        LEFT JOIN Tb_Diario d ON e.codEmpleado = d.empleado AND d.fecha = @fecha
+        WHERE d.codDiar IS NULL
+          AND (
+              (@diaSemana = 1  AND h.ingLUN <> h.salLUN)
+              OR (@diaSemana = 2  AND h.ingMAR <> h.salMAR)
+              OR (@diaSemana = 3  AND h.ingMIE <> h.salMIE)
+              OR (@diaSemana = 4  AND h.ingJUE <> h.salJUE)
+              OR (@diaSemana = 5  AND h.ingVIE <> h.salVIE)
+              OR (@diaSemana = 6  AND h.ingSAB <> h.salSAB)
+              OR (@diaSemana = 7  AND h.ingDOM <> h.salDOM)
+          );
+	
+
+        COMMIT TRANSACTION;
+    END TRY
+    BEGIN CATCH
+        ROLLBACK TRANSACTION;
+        THROW;
+    END CATCH;
+END;
+GO
+
+
+
+
+
+-- GENERACION DE TRABAJOS
+USE msdb;
+GO
+
+EXEC dbo.sp_add_job 
+    @job_name = N'RegistroFaltas', 
+    @enabled = 1, 
+    @description = N'Ejecucion de procedimiento almacenado diariamente a las 1:00 AM',
+    @start_step_id = 1;
+GO
+
+EXEC dbo.sp_add_jobstep 
+    @job_name = N'RegistroFaltas', 
+    @step_name = N'Ejecucion_usp_RegFaltas', 
+    @subsystem = N'TSQL', 
+    @command = N'EXEC usp_RegFaltas;', 
+    @database_name = N'BROLdb', 
+    @retry_attempts = 0, 
+    @retry_interval = 0;
+GO
+
+EXEC dbo.sp_add_schedule 
+    @schedule_name = N'Diario1AM', 
+    @freq_type = 4, 
+    @freq_interval = 1, 
+    @active_start_time = 010000; 
+GO
+EXEC dbo.sp_attach_schedule 
+    @job_name = N'RegistroFaltas', 
+    @schedule_name = N'Diario1AM';
+GO
+
+EXEC dbo.sp_add_jobserver 
+    @job_name = N'RegistroFaltas', 
+    @server_name = N'(local)';
+GO
