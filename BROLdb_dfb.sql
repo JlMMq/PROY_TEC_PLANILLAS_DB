@@ -363,6 +363,10 @@ CREATE TABLE Tb_SueldoParametros(
 	descripcion VARCHAR(100) NULL,
 	valor_desc float NOT NULL DEFAULT 0 
 );
+INSERT INTO Tb_SueldoParametros(descripcion,valor_desc) values 
+('ESSALUD',0.09),
+('ONP',0.13),
+('AFP',0.10);
 
 GO
 CREATE TABLE Tb_RecibosPago(
@@ -2643,6 +2647,103 @@ END;
 GO
 
 
+CREATE PROCEDURE usp_GeneracionReciboPagos
+AS
+BEGIN
+    BEGIN TRANSACTION;
+
+    BEGIN TRY
+        -- Variables
+        DECLARE @fechaEmision DATETIME = GETDATE();
+        DECLARE @diaMes INT = DAY(@fechaEmision);
+        DECLARE @periodoPago FLOAT;
+        DECLARE @codEmpleado INT;
+        DECLARE @sueldoBase FLOAT;
+        DECLARE @descEssalud FLOAT = 0;
+        DECLARE @descOnp FLOAT = 0;
+        DECLARE @descAfp FLOAT = 0;
+        DECLARE @descFaltas FLOAT = 0;
+        DECLARE @sueldoTotal FLOAT = 0;
+        DECLARE @essalud FLOAT;
+        DECLARE @onp FLOAT;
+        DECLARE @afp FLOAT;
+        DECLARE @fechaInicio DATE;
+        DECLARE @fechaFin DATE;
+		
+		DECLARE @flag_essalud INT = 0;
+		DECLARE @flag_onp INT = 0;
+		DECLARE @flag_afp INT = 0;
+
+        
+        IF @diaMes = 15
+        BEGIN
+            SET @periodoPago = 0.40;  
+            SET @fechaInicio = DATEADD(DAY, 1-DAY(@fechaEmision), @fechaEmision);  
+            SET @fechaFin = DATEADD(DAY, 14, @fechaInicio);  
+        END
+        ELSE IF @diaMes = 30
+        BEGIN
+            SET @periodoPago = 0.60;  
+            SET @fechaInicio = DATEADD(DAY, 15-DAY(@fechaEmision), @fechaEmision);  
+            SET @fechaFin = EOMONTH(@fechaEmision);  
+        END
+        ELSE
+            RETURN; 
+
+        SELECT @essalud = valor_desc FROM Tb_SueldoParametros WHERE descripcion = 'ESSALUD';
+        SELECT @onp = valor_desc FROM Tb_SueldoParametros WHERE descripcion = 'ONP';
+        SELECT @afp = valor_desc FROM Tb_SueldoParametros WHERE descripcion = 'AFP';
+
+        DECLARE empleados_cursor CURSOR FOR
+            SELECT codEmpleado, sueldo, essalud, afil_onp, afil_afp FROM Tb_Sueldo WHERE estado = 1;
+
+        OPEN empleados_cursor;
+
+        FETCH NEXT FROM empleados_cursor INTO @codEmpleado, @sueldoBase, @flag_essalud, @flag_onp, @flag_afp;
+
+        WHILE @@FETCH_STATUS = 0
+        BEGIN
+           
+            IF @flag_essalud = 1
+                SET @descEssalud = @sueldoBase * @essalud * @periodoPago;
+
+            IF @flag_onp = 1
+                SET @descOnp = @sueldoBase * @onp * @periodoPago;
+
+            IF @flag_afp = 1
+                SET @descAfp = @sueldoBase * @afp * @periodoPago;
+
+            
+            SELECT @descFaltas = SUM(CASE WHEN observ IN ('PUNTUAL', 'VACACIONES') THEN 0 ELSE 1 END * (@sueldoBase / 30) * @periodoPago)
+            FROM Tb_Diario
+            WHERE empleado = @codEmpleado AND fecha BETWEEN @fechaInicio AND @fechaFin;
+
+           
+            SET @sueldoTotal = @sueldoBase * @periodoPago - @descEssalud - @descOnp - @descAfp - @descFaltas;
+
+           
+            INSERT INTO Tb_RecibosPago (codEmpleado, fechaEmision, sueldoBase, descEssalud, descOnp, descAfp, descFaltas, sueldoTotal, fec_Reg, usu_Reg)
+            VALUES (@codEmpleado, @fechaEmision, @sueldoBase * @periodoPago, @descEssalud, @descOnp, @descAfp, @descFaltas, @sueldoTotal, @fechaEmision, SYSTEM_USER);
+
+            SET @descEssalud = 0;
+            SET @descOnp = 0;
+            SET @descAfp = 0;
+            SET @descFaltas = 0;
+
+            FETCH NEXT FROM empleados_cursor INTO @codEmpleado, @sueldoBase, @flag_essalud, @flag_onp, @flag_afp;
+        END;
+
+        CLOSE empleados_cursor;
+        DEALLOCATE empleados_cursor;
+
+        COMMIT TRANSACTION;
+    END TRY
+    BEGIN CATCH
+        ROLLBACK TRANSACTION;
+        THROW;
+    END CATCH;
+END;
+GO
 
 
 
@@ -2651,17 +2752,27 @@ USE msdb;
 GO
 
 EXEC dbo.sp_add_job 
-    @job_name = N'RegistroFaltas', 
+    @job_name = N'RegistroFaltasYRecibos', 
     @enabled = 1, 
-    @description = N'Ejecucion de procedimiento almacenado diariamente a las 1:00 AM',
+    @description = N'Ejecucion de procedimientos almacenados diariamente a las 1:00 AM',
     @start_step_id = 1;
 GO
 
 EXEC dbo.sp_add_jobstep 
-    @job_name = N'RegistroFaltas', 
+    @job_name = N'RegistroFaltasYRecibos', 
     @step_name = N'Ejecucion_usp_RegFaltas', 
     @subsystem = N'TSQL', 
     @command = N'EXEC usp_RegFaltas;', 
+    @database_name = N'BROLdb', 
+    @retry_attempts = 0, 
+    @retry_interval = 0;
+GO
+
+EXEC dbo.sp_add_jobstep 
+    @job_name = N'RegistroFaltasYRecibos', 
+    @step_name = N'Ejecucion_usp_GeneracionReciboPagos', 
+    @subsystem = N'TSQL', 
+    @command = N'EXEC usp_GeneracionReciboPagos;', 
     @database_name = N'BROLdb', 
     @retry_attempts = 0, 
     @retry_interval = 0;
@@ -2673,12 +2784,13 @@ EXEC dbo.sp_add_schedule
     @freq_interval = 1, 
     @active_start_time = 010000; 
 GO
+
 EXEC dbo.sp_attach_schedule 
-    @job_name = N'RegistroFaltas', 
+    @job_name = N'RegistroFaltasYRecibos', 
     @schedule_name = N'Diario1AM';
 GO
 
 EXEC dbo.sp_add_jobserver 
-    @job_name = N'RegistroFaltas', 
+    @job_name = N'RegistroFaltasYRecibos', 
     @server_name = N'(local)';
 GO
