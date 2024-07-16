@@ -911,7 +911,7 @@ CREATE PROCEDURE usp_ListarEmpleados
 END;
 
 go	
-CREATE PROCEDURE usp_InsertarEmpleado
+ALTER PROCEDURE usp_InsertarEmpleado
 	@numroDoc nvarchar(15),
 	@tipoDoc nvarchar(2),
 	@apellidos nvarchar (50),
@@ -933,46 +933,35 @@ CREATE PROCEDURE usp_InsertarEmpleado
 	@estado integer
 	AS
 	BEGIN 
+	 DECLARE @codEmpleado INT = 0;
+
 	INSERT INTO Tb_Empleado
 	(
-	numroDoc,
-	tipoDoc,
-	apellidos,
-	nombres,
-	fecNacimiento,
-	genero,
-	correo,
-	direccion,
-	telefono,
-	fecIngreso,
-	codCargo,
-	codArea,
-	codSede,
-	codHorario,
-	foto,
-	fec_Reg,
-	usu_Reg,
-	estado
+	numroDoc,tipoDoc,
+	apellidos,nombres,
+	fecNacimiento,genero,
+	correo,direccion,
+	telefono,fecIngreso,
+	codCargo,codArea,
+	codSede,codHorario,
+	foto,fec_Reg,
+	usu_Reg,estado
 	) VALUES
-	(@numroDoc,
-	@tipoDoc,
-	@apellidos,
-	@nombres,
-	@fecNacimiento,
-	@genero,
-	@correo,
-	@direccion,
-	@telefono,
-	@fecIngreso,
-	@codCargo,
-	@codArea,
-	@codSede,
-	@codHorario,
-	@foto,
-	GETDATE(),
-	@usu_Reg,
-	@estado
+	(@numroDoc,@tipoDoc,
+	@apellidos,@nombres,
+	@fecNacimiento,@genero,
+	@correo,@direccion,
+	@telefono,@fecIngreso,
+	@codCargo,@codArea,
+	@codSede,@codHorario,
+	@foto,GETDATE(),
+	@usu_Reg,@estado
 	);
+
+	SET @codEmpleado = SCOPE_IDENTITY();
+	
+	SELECT @codEmpleado AS codigo;
+
 END;
 
 go
@@ -2782,7 +2771,7 @@ CREATE PROCEDURE usp_ConsultarSueldoCod
 	@empleado INT
 	AS
 	BEGIN
-		SELECT codSueldo,codEmpleado,essalud,afil_onp,afil_afp FROM Tb_Sueldo where codEmpleado = @empleado;
+		SELECT codSueldo,codEmpleado,sueldo,essalud,afil_onp,afil_afp FROM Tb_Sueldo where codEmpleado = @empleado;
 	END;
 GO
 
