@@ -2609,8 +2609,8 @@ CREATE PROCEDURE usp_RegFaltas
               OR (@diaSemana = 7  AND h.ingDOM <> h.salDOM)
 		  );
 
-        INSERT INTO Tb_Diario (fecha, empleado, observ)
-        SELECT @fecha, e.codEmpleado, 'FALTO'
+        INSERT INTO Tb_Diario (fecha, empleado, observ, horario, usu_Reg, fec_Reg)
+        SELECT @fecha, e.codEmpleado, 'FALTO' , e.codHorario, 'system',GETDATE()
         FROM Tb_Empleado e
         INNER JOIN Tb_Horario h ON e.codHorario = h.codHorario
         LEFT JOIN Tb_Diario d ON e.codEmpleado = d.empleado AND d.fecha = @fecha
@@ -2732,6 +2732,8 @@ BEGIN
     END CATCH;
 END;
 GO
+
+
 CREATE PROCEDURE usp_InsertarSueldo
 	@empleado int,
 	@sueldo float,
