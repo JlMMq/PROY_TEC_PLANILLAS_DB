@@ -2653,7 +2653,6 @@ BEGIN
     BEGIN TRANSACTION;
 
     BEGIN TRY
-        -- Variables
         DECLARE @fechaEmision DATETIME = GETDATE();
         DECLARE @diaMes INT = DAY(@fechaEmision);
         DECLARE @periodoPago FLOAT;
@@ -2722,8 +2721,8 @@ BEGIN
             SET @sueldoTotal = @sueldoBase * @periodoPago - @descEssalud - @descOnp - @descAfp - @descFaltas;
 
            
-            INSERT INTO Tb_RecibosPago (codEmpleado, fechaEmision, sueldoBase, descEssalud, descOnp, descAfp, descFaltas, sueldoTotal, fec_Reg, usu_Reg)
-            VALUES (@codEmpleado, @fechaEmision, @sueldoBase * @periodoPago, @descEssalud, @descOnp, @descAfp, @descFaltas, @sueldoTotal, @fechaEmision, SYSTEM_USER);
+            INSERT INTO Tb_RecibosPago (codEmpleado, fechaEmision,moneda, sueldoBase, descEssalud, descOnp, descAfp, descFaltas, sueldoTotal, fec_Reg, usu_Reg)
+            VALUES (@codEmpleado, @fechaEmision,'SOLES S/.', @sueldoBase * @periodoPago, @descEssalud, @descOnp, @descAfp, @descFaltas, @sueldoTotal, @fechaEmision, SYSTEM_USER);
 
             SET @descEssalud = 0;
             SET @descOnp = 0;
@@ -2744,9 +2743,57 @@ BEGIN
     END CATCH;
 END;
 GO
+CREATE PROCEDURE usp_InsertarSueldo
+	@empleado int,
+	@sueldo float,
+	@flag_essalud int,
+	@flag_onp int,
+	@flag_afp int,
 
+	@usuario VARCHAR(20)
+	AS
+	BEGIN
+		INSERT INTO Tb_Sueldo (codEmpleado,sueldo,essalud,afil_onp,afil_afp,estado,usu_Reg,fec_Reg)
+		VALUES (@empleado,@sueldo,@flag_essalud,@flag_onp,@flag_afp,1,@usuario,GETDATE());
 
+	END;
+GO
+CREATE PROCEDURE usp_ActualizarSueldo
+	@empleado int,
+	@sueldo float,
+	@flag_essalud int,
+	@flag_onp int,
+	@flag_afp int,
 
+	@usuario VARCHAR(20)
+	AS
+	BEGIN
+		UPDATE Tb_Sueldo SET 
+			sueldo = @sueldo,
+			essalud = @flag_essalud,
+			afil_onp = @flag_onp,
+			afil_afp = @flag_afp,
+			usu_UltMod = @usuario,
+			fec_UltMod = GETDATE()
+		WHERE codEmpleado = @empleado;
+	END;
+GO
+CREATE PROCEDURE usp_ConsultarSueldoCod
+	@empleado INT
+	AS
+	BEGIN
+		SELECT codSueldo,codEmpleado,essalud,afil_onp,afil_afp FROM Tb_Sueldo where codEmpleado = @empleado;
+	END;
+GO
+
+CREATE PROCEDURE usp_ListarRecibosEmpleado
+	@empleado int	
+	AS
+	BEGIN
+		SELECT r.codRecibo, r.codEmpleado ,(e.apellidos + ', '+ e.nombres) AS apenom, r.fechaEmision, r.moneda, r.sueldoBase,r.descEssalud,r.descOnp, r.descAfp, r.descFaltas,r.sueldoTotal FROM Tb_RecibosPago r 
+		INNER JOIN Tb_Empleado e ON e.codEmpleado = r.codEmpleado WHERE r.codEmpleado = @empleado;
+	END;
+GO
 -- GENERACION DE TRABAJOS
 USE msdb;
 GO
