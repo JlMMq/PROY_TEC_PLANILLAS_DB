@@ -1589,13 +1589,32 @@ CREATE PROCEDURE usp_ConsultarDiarioFecEmpl
 	END;
 
 GO
-CREATE PROCEDURE usp_ListarDiario
-	AS
-	BEGIN
-	SELECT 
-		*
-	FROM vw_VistaDiario
-	ORDER BY fecha;
+create PROCEDURE usp_ListarDiario
+AS
+BEGIN
+    SELECT 
+        d.codDiar,
+        d.fecha,  
+        d.empleado,
+        e.apellidos + ', ' + e.nombres AS apenom,
+        d.horario,
+        h.desHorario,
+        ISNULL(CONVERT(VARCHAR(8), d.hora1, 108), '') AS hora1,  
+        ISNULL(CONVERT(VARCHAR(8), d.hora2, 108), '') AS hora2, 
+        ISNULL(CONVERT(VARCHAR(8), d.hora3, 108), '') AS hora3,  
+        ISNULL(CONVERT(VARCHAR(8), d.hora4, 108), '') AS hora4,  
+        ISNULL(CONVERT(VARCHAR(8), d.ingrTard, 108), '') AS ingrTard,  
+        ISNULL(CONVERT(VARCHAR(8), d.exeRefr, 108), '') AS exeRefr,  
+        ISNULL(CONVERT(VARCHAR(8), d.exeJornd, 108), '') AS exeJornd,  
+        ISNULL(d.observ, '') AS observ
+    FROM 
+        Tb_Diario d
+    INNER JOIN 
+        Tb_Empleado e ON d.empleado = e.codEmpleado
+    INNER JOIN 
+        Tb_Horario h ON d.horario = h.codHorario
+    ORDER BY 
+        d.fecha;
 END;
 
 GO
